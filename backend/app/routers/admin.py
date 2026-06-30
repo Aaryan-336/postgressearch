@@ -321,3 +321,49 @@ async def rebuild_embeddings(
         tables_processed=table_count,
         message="Embeddings rebuilt successfully",
     )
+
+
+@router.post("/seed")
+async def seed_database(
+    session: AsyncSession = Depends(get_session),
+    _admin: bool = Depends(verify_admin_key),
+):
+    """Seed the database with company_test.sql tables and records (admin only)."""
+    import os
+    from sqlalchemy import text
+    
+    # Path to company_test.sql inside the backend directory
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sql_path = os.path.join(base_dir, "company_test.sql")
+    
+    if not os.path.exists(sql_path):
+        # Fallback
+        sql_path = "company_test.sql"
+        if not os.path.exists(sql_path):
+            raise HTTPException(status_code=404, detail=f"SQL script not found at {sql_path}")
+            
+    try:
+        with open(sql_path, "r", encoding="utf-8") as f:
+            sql_content = f.read()
+            
+        # Clean lines
+        cleaned_content = []
+        for line in sql_content.splitlines():
+            line_stripped = line.strip()
+            if not line_stripped.startswith("--") and line_stripped:
+                cleaned_content.append(line)
+        
+        full_sql = "\n".join(cleaned_content)
+        statements = full_sql.split(";")
+        
+        executed_count = 0
+        for statement in statements:
+            stmt_clean = statement.strip()
+            if stmt_clean:
+                await session.execute(text(stmt_clean))
+                executed_count += 1
+                
+        return {"message": "Database seeded successfully", "statements_executed": executed_count}
+    except Exception as e:
+        logger.error(f"Seeding failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Seeding failed: {str(e)}")
