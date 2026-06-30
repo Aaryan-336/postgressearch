@@ -26,8 +26,12 @@ def init_engine() -> AsyncEngine:
     global _engine, _session_factory
     settings = get_settings()
 
+    db_url = settings.database_url
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
     _engine = create_async_engine(
-        settings.database_url,
+        db_url,
         pool_size=10,
         max_overflow=20,
         pool_pre_ping=True,
