@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database with pgvector pre-installed
+  nlpsearch-db:
+    image: pgvector/pgvector:17-pgvector
+    container_name: nlpsearch-db
+    environment:
+      POSTGRES_USER: nlpsearch_user
+      POSTGRES_PASSWORD: your_secure_password
+      POSTGRES_DB: nlpsearch_internal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nlpsearch_user -d nlpsearch_internal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. FastAPI Backend
+  nlpsearch-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nlpsearch-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://nlpsearch_user:your_secure_password@nlpsearch-db:5432/nlpsearch_internal
+      - ENVIRONMENT=production
+      - RATE_LIMIT=60/minute
+      - MAX_ROWS=100
+      - QUERY_TIMEOUT_SECONDS=10
+      - ALLOWED_ORIGINS=http://localhost:3000
+      - FERNET_KEY=KWCShgbuxV87n39ou8i_3wm12TmQYcMJSvTxZZEDsWM= # Replace with a securely generated key
+      - ADMIN_API_KEY=your_secure_admin_key
+      - GROQ_API_KEY=your_groq_api_key_here
+      - GEMINI_API_KEY=your_gemini_api_key_here
+    depends_on:
+      nlpsearch-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 3. Next.js Frontend
+  nlpsearch-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    container_name: nlpsearch-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - nlpsearch-backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
