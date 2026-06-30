@@ -36,23 +36,20 @@ async def lifespan(app: FastAPI):
     logger.info("Starting NLPSearch API...")
     engine = init_engine()
 
-    # Create tables if they don't exist (dev convenience)
-    # In production, use Alembic migrations instead
-    settings = get_settings()
-    if settings.environment == "development":
-        from sqlalchemy import text
-        async with engine.begin() as conn:
-            # Import all models so they register with Base
-            import app.models  # noqa: F401
-            await conn.run_sync(Base.metadata.create_all)
-            
-            # Ensure new columns exist on query_logs table
-            try:
-                await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)"))
-                await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS user_role VARCHAR(50)"))
-                logger.info("Database tables and audit columns ensured")
-            except Exception as e:
-                logger.warning(f"Could not check/alter query_logs table: {e}")
+    # Create tables if they don't exist
+    from sqlalchemy import text
+    async with engine.begin() as conn:
+        # Import all models so they register with Base
+        import app.models  # noqa: F401
+        await conn.run_sync(Base.metadata.create_all)
+        
+        # Ensure new columns exist on query_logs table
+        try:
+            await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)"))
+            await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS user_role VARCHAR(50)"))
+            logger.info("Database tables and audit columns ensured")
+        except Exception as e:
+            logger.warning(f"Could not check/alter query_logs table: {e}")
 
     logger.info("NLPSearch API started successfully")
     yield
