@@ -1,0 +1,1 @@
+"""NLPSearch backend application."""

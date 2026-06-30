@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: nlpsearch-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nlpsearch-db
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: MAX_ROWS
+        value: "100"
+      - key: QUERY_TIMEOUT_SECONDS
+        value: "10"
+      - key: RATE_LIMIT
+        value: "60/minute"
+      - key: ALLOWED_ORIGINS
+        value: https://your-frontend-vercel-url.vercel.app,http://localhost:3000
+      # Placeholders for keys to be set in Render UI dashboard:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FERNET_KEY
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+
+databases:
+  - name: nlpsearch-db
+    plan: free
+    databaseName: nlpsearch_internal
+    user: nlpsearch_user
