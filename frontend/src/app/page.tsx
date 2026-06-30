@@ -42,6 +42,7 @@ export default function HomePage() {
   
   // Simulated profile state
   const [selectedProfile, setSelectedProfile] = useState<Profile>(PROFILES[1]); // Default to Analyst
+  const [hideProfileSelector, setHideProfileSelector] = useState(false);
   
   // Connection and login state
   const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
@@ -60,8 +61,22 @@ export default function HomePage() {
     try {
       const data = await listConnections();
       setConnections(data);
-      if (data.length > 0 && loginMode === "url") {
-        setLoginMode("existing"); // Default to existing if some exist
+      if (data.length > 0) {
+        if (loginMode === "url") {
+          setLoginMode("existing");
+        }
+        
+        // Auto-select the first connection if none is selected or if saved id is invalid
+        const savedId = typeof window !== "undefined" ? localStorage.getItem("nlpsearch_connection_id") : null;
+        const exists = data.some(c => c.id === savedId);
+        
+        if (!savedId || !exists) {
+          const defaultId = data[0].id;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("nlpsearch_connection_id", defaultId);
+          }
+          setActiveConnectionId(defaultId);
+        }
       }
     } catch (err) {
       console.error("Failed to load connections:", err);
@@ -70,12 +85,42 @@ export default function HomePage() {
     }
   }, [loginMode]);
 
+  // Parse query parameters on load to support seamless link access
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const email = params.get("email");
+      const role = params.get("role");
+      const location = params.get("location") || "";
+      const department = params.get("department") || "";
+      const connectionId = params.get("connection_id");
+
+      if (role && email) {
+        setSelectedProfile({
+          name: `${role.charAt(0).toUpperCase() + role.slice(1)} (${email})`,
+          email,
+          role,
+          department,
+          location,
+        });
+        setHideProfileSelector(true);
+      }
+
+      if (connectionId) {
+        localStorage.setItem("nlpsearch_connection_id", connectionId);
+        setActiveConnectionId(connectionId);
+      }
+    }
+  }, []);
+
   // Initialize and load connections
   useEffect(() => {
     const timer = setTimeout(() => {
       if (typeof window !== "undefined") {
         const savedId = localStorage.getItem("nlpsearch_connection_id");
-        setActiveConnectionId(savedId);
+        if (savedId) {
+          setActiveConnectionId(savedId);
+        }
       }
       loadAllConnections();
     }, 0);
@@ -415,23 +460,25 @@ export default function HomePage() {
 
               {/* Search Bar with Simulated Profile selector */}
               <div className="w-full max-w-3xl px-4">
-                <div className="flex items-center justify-between mb-2 px-1 text-xs">
-                  <span className="text-[var(--text-secondary)] font-medium">Simulate Profile:</span>
-                  <select
-                    value={selectedProfile.role}
-                    onChange={(e) => {
-                      const found = PROFILES.find(p => p.role === e.target.value);
-                      if (found) setSelectedProfile(found);
-                    }}
-                    className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-md px-2.5 py-1 text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] transition-all cursor-pointer font-medium"
-                  >
-                    {PROFILES.map((p) => (
-                      <option key={p.role} value={p.role}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {!hideProfileSelector && (
+                  <div className="flex items-center justify-between mb-2 px-1 text-xs">
+                    <span className="text-[var(--text-secondary)] font-medium">Simulate Profile:</span>
+                    <select
+                      value={selectedProfile.role}
+                      onChange={(e) => {
+                        const found = PROFILES.find(p => p.role === e.target.value);
+                        if (found) setSelectedProfile(found);
+                      }}
+                      className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-md px-2.5 py-1 text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] transition-all cursor-pointer font-medium"
+                    >
+                      {PROFILES.map((p) => (
+                        <option key={p.role} value={p.role}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <SearchBar onSearch={handleSearch} loading={loading} />
               </div>
 
